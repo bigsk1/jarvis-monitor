@@ -1,6 +1,10 @@
-# Jarvis Monitoring Agent (Docker)
-
-Universal monitoring agent that runs in Docker and sends alerts to Jarvis.
+<div align="center">
+  <img src="https://imagedelivery.net/WfhVb8dSNAAvdXUdMfBuPQ/accb8e7c-4161-4e38-55ac-71b320c44300/public" alt="Jarvis Monitor Banner" width="100%">
+  
+  # Jarvis Monitoring Agent (Docker)
+  
+  Universal monitoring agent that runs in Docker and sends alerts to Jarvis.
+</div>
 
 ---
 
