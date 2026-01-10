@@ -22,9 +22,47 @@ from datetime import datetime
 JARVIS_API = os.getenv("JARVIS_API", "http://localhost:8880/api/alerts")
 CHECK_INTERVAL = int(os.getenv("CHECK_INTERVAL", "60"))
 MONITOR_CONTAINERS = [c.strip() for c in os.getenv("MONITOR_CONTAINERS", "").split(",") if c.strip()]
-MONITOR_URLS = [u.strip() for u in os.getenv("MONITOR_URLS", "").split(",") if u.strip()]
 SOURCE_NAME = os.getenv("SOURCE_NAME", os.uname().nodename)
 AUTO_RESOLVE_INTERVAL = int(os.getenv("AUTO_RESOLVE_INTERVAL", "60"))  # Faster auto-resolve (60s default)
+ALERT_TIMEOUT = int(os.getenv("ALERT_TIMEOUT", "30"))  # Timeout for Jarvis API calls (increased for TTS)
+
+
+def parse_monitor_urls(env_value: str) -> list:
+    """
+    Parse MONITOR_URLS with optional names.
+    
+    Formats supported:
+      - Simple URL: http://host:port/health
+      - Named URL: friendly-name|http://host:port/health
+    
+    Returns list of tuples: [(name, url), ...]
+    """
+    urls = []
+    for entry in env_value.split(","):
+        entry = entry.strip()
+        if not entry:
+            continue
+        
+        if "|" in entry:
+            # Named format: name|url
+            parts = entry.split("|", 1)
+            name = parts[0].strip()
+            url = parts[1].strip()
+        else:
+            # Simple format: url only (extract hostname for name)
+            url = entry
+            # Create name from URL: http://192.168.60.155:8080/health -> 192.168.60.155:8080
+            try:
+                name = url.split("//")[-1].split("/")[0]
+            except:
+                name = url
+        
+        urls.append((name, url))
+    return urls
+
+
+# Parse URLs with names
+MONITOR_URLS = parse_monitor_urls(os.getenv("MONITOR_URLS", ""))
 
 # Global state
 running = True
@@ -54,7 +92,7 @@ def send_alert(title, description, severity, auto_resolve_url=None, metadata=Non
         payload["metadata"] = metadata
     
     try:
-        response = requests.post(JARVIS_API, json=payload, timeout=10)
+        response = requests.post(JARVIS_API, json=payload, timeout=ALERT_TIMEOUT)
         return response.json()
     except requests.exceptions.RequestException as e:
         print(f"❌ Failed to send alert: {e}", file=sys.stderr)
@@ -68,7 +106,7 @@ def resolve_alerts_by_source(title_pattern: str):
         response = requests.get(
             JARVIS_API.replace('/alerts', '/alerts'),
             params={"status": "pending", "source": SOURCE_NAME},
-            timeout=10
+            timeout=ALERT_TIMEOUT
         )
         if not response.ok:
             return False
@@ -81,7 +119,7 @@ def resolve_alerts_by_source(title_pattern: str):
                 alert_id = alert['id']
                 # Resolve this alert
                 resolve_url = JARVIS_API.replace('/alerts', f'/alerts/{alert_id}/resolve')
-                requests.post(resolve_url, timeout=10)
+                requests.post(resolve_url, timeout=ALERT_TIMEOUT)
                 return True
         
         return False
@@ -93,7 +131,7 @@ def resolve_alerts_by_source(title_pattern: str):
 def check_url(url):
     """Check if URL is responding."""
     try:
-        response = requests.get(url, timeout=10, allow_redirects=True)
+        response = requests.get(url, timeout=15, allow_redirects=True)
         return 200 <= response.status_code < 400
     except requests.exceptions.RequestException:
         return False
@@ -124,7 +162,8 @@ def main():
     if MONITOR_CONTAINERS:
         print(f"Monitoring Containers: {', '.join(MONITOR_CONTAINERS)}")
     if MONITOR_URLS:
-        print(f"Monitoring URLs: {', '.join(MONITOR_URLS)}")
+        url_display = [f"{name} ({url})" for name, url in MONITOR_URLS]
+        print(f"Monitoring URLs: {', '.join(url_display)}")
     
     print("=" * 60)
     print()
@@ -162,26 +201,26 @@ def main():
         current_time = datetime.now().strftime('%H:%M:%S')
         
         # Check URLs
-        for url in MONITOR_URLS:
+        for name, url in MONITOR_URLS:
             is_up = check_url(url)
             prev = last_status.get(f"url:{url}")
             
             # Status changed from up to down
             if prev and not is_up:
-                print(f"[{current_time}] ❌ URL DOWN: {url}")
+                print(f"[{current_time}] ❌ URL DOWN: {name} ({url})")
                 result = send_alert(
-                    f"Service Down: {url}",
-                    f"URL {url} is not responding",
+                    f"Service Down: {name}",
+                    f"{name} is not responding (URL: {url})",
                     "high",
                     auto_resolve_url=url,
-                    metadata={"url": url, "source": SOURCE_NAME}
+                    metadata={"url": url, "name": name, "source": SOURCE_NAME}
                 )
                 if result and result.get("ok"):
                     print(f"           ✅ Alert sent (ID: {result.get('alert_id')})")
             
             # Status changed from down to up
             elif prev == False and is_up:
-                print(f"[{current_time}] ✅ URL UP: {url}")
+                print(f"[{current_time}] ✅ URL UP: {name} ({url})")
             
             last_status[f"url:{url}"] = is_up
         
@@ -220,12 +259,12 @@ def main():
         if check_count % 10 == 0:
             statuses = []
             
-            for url in MONITOR_URLS:
+            for name, url in MONITOR_URLS:
                 status = last_status.get(f"url:{url}")
                 if status:
-                    statuses.append(f"URL({url.split('//')[-1].split('/')[0]}):✓")
+                    statuses.append(f"{name}:✓")
                 elif status is False:
-                    statuses.append(f"URL({url.split('//')[-1].split('/')[0]}):✗")
+                    statuses.append(f"{name}:✗")
             
             for container_name in MONITOR_CONTAINERS:
                 status = last_status.get(f"container:{container_name}")

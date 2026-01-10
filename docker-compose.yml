@@ -19,6 +19,7 @@ services:
       MONITOR_CONTAINERS: ${MONITOR_CONTAINERS}
       MONITOR_URLS: ${MONITOR_URLS}
       SOURCE_NAME: ${SOURCE_NAME}
+      ALERT_TIMEOUT: ${ALERT_TIMEOUT}
     
     volumes:
       # Mount Docker socket to monitor containers

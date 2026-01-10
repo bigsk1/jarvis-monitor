@@ -86,7 +86,7 @@ docker run -d \
   bigsk1/jarvis-monitor:latest
 ```
 
-### Example: Monitor URLs
+### Example: Monitor URLs (with friendly names)
 ```bash
 docker run -d \
   --name jarvis-monitor \
@@ -94,9 +94,11 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock:ro \
   -e JARVIS_API="http://100.101.102.103:8880/api/alerts" \
   -e SOURCE_NAME="web-services" \
-  -e MONITOR_URLS="http://localhost:8080/health,http://localhost:3000/api/status" \
+  -e MONITOR_URLS="proxmox-main|http://192.168.1.100:8080/health,webapp|http://localhost:3000/api/status" \
   bigsk1/jarvis-monitor:latest
 ```
+
+**Note**: Named URLs use the format `friendly-name|url`. TTS will say "proxmox-main is down" instead of the raw URL.
 
 ### Example: Monitor Both Containers and URLs
 ```bash
@@ -107,7 +109,7 @@ docker run -d \
   -e JARVIS_API="http://100.101.102.103:8880/api/alerts" \
   -e SOURCE_NAME="ai-server" \
   -e MONITOR_CONTAINERS="ollama,comfyui,kokoro-tts" \
-  -e MONITOR_URLS="http://localhost:11434/health,http://localhost:8188/health" \
+  -e MONITOR_URLS="ollama-api|http://localhost:11434/health,comfyui-web|http://localhost:8188/health" \
   bigsk1/jarvis-monitor:latest
 ```
 
@@ -207,8 +209,9 @@ Or via voice:
 |----------|---------|-------------|
 | `JARVIS_API` | `http://localhost:8880/api/alerts` | Jarvis API endpoint |
 | `CHECK_INTERVAL` | `60` | Check interval (seconds) |
+| `ALERT_TIMEOUT` | `30` | Timeout for Jarvis API calls (seconds) - increase if TTS is slow |
 | `MONITOR_CONTAINERS` | `""` | Container names to monitor (comma-separated) |
-| `MONITOR_URLS` | `""` | URLs to monitor (comma-separated) |
+| `MONITOR_URLS` | `""` | URLs to monitor - supports named URLs (see below) |
 | `SOURCE_NAME` | hostname | Source name for alerts |
 | `ALERT_ON_START` | `false` | Send alert when agent starts |
 
@@ -220,8 +223,26 @@ MONITOR_CONTAINERS: "nginx,redis,postgres,app,worker"
 
 ### Example: Monitor Multiple URLs
 
+**Simple format** (URL only):
 ```yaml
-MONITOR_URLS: "http://localhost:8000/health,http://localhost:3000/api/health,http://192.168.1.100:9090"
+MONITOR_URLS: "http://localhost:8000/health,http://localhost:3000/api/health"
+```
+
+**Named format** (recommended - TTS will speak the friendly name):
+```yaml
+# Format: friendly-name|url
+MONITOR_URLS: "proxmox-main|http://192.168.1.100:8080/health,web-server|http://192.168.1.100:9090"
+```
+
+With named URLs, Jarvis will say:
+> "Boss, urgent alert! Service Down: proxmox-main"
+
+Instead of:
+> "Boss, urgent alert! Service Down: http://192.168.1.100:8080/health"
+
+**Mix both formats**:
+```yaml
+MONITOR_URLS: "proxmox-main|http://192.168.1.100:8080/health,http://localhost:3000/api/health"
 ```
 
 ---
@@ -243,14 +264,16 @@ Jarvis API: http://100.101.102.103:8880/api/alerts
 Source Name: proxmox-gpu-vm
 Check Interval: 60s
 Monitoring Containers: kokoro-tts, comfyui, ollama
-Monitoring URLs: http://localhost:8188/health, http://localhost:11434/health
+Monitoring URLs: comfyui-web (http://localhost:8188/health), ollama-api (http://localhost:11434/health)
 ============================================================
 
 ✅ Docker client initialized
 
-[10:31:00] Status: URL(localhost:8188):✓ | URL(localhost:11434):✓ | kokoro-tts:✓ | comfyui:✓ | ollama:✓
+[10:31:00] Status: comfyui-web:✓ | ollama-api:✓ | kokoro-tts:✓ | comfyui:✓ | ollama:✓
 [10:32:00] ❌ CONTAINER STOPPED: kokoro-tts (status: exited)
            ✅ Alert sent (ID: 42)
+[10:33:00] ❌ URL DOWN: proxmox-main (http://192.168.1.100:8080/health)
+           ✅ Alert sent (ID: 43)
 ```
 
 ---
@@ -366,6 +389,15 @@ volumes:
 2. Check Tailscale connectivity: `ping [JARVIS_TAILSCALE_IP]`
 3. Verify JARVIS_API environment variable is correct
 4. Check logs: `docker logs jarvis-monitor`
+
+### "Failed to send alert: Read timed out"
+
+**Cause**: Jarvis API is slow to respond (usually during TTS playback)
+
+**Fix**:
+1. Increase timeout: `-e ALERT_TIMEOUT=60` (default is 30s)
+2. This is normal when Jarvis is speaking alerts - the TTS can take time
+3. The alert may still have been received - check Jarvis logs or ask "list pending alerts"
 
 ### "Docker not available"
 
