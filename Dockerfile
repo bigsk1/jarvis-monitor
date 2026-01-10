@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.url="https://github.com/bigsk1/jarvis-monitor"
 LABEL org.opencontainers.image.documentation="https://github.com/bigsk1/jarvis-monitor"
 LABEL org.opencontainers.image.source="https://github.com/bigsk1/jarvis-monitor"
 LABEL org.opencontainers.image.licenses="MIT"
-LABEL org.opencontainers.image.version="1.0.0"
+LABEL org.opencontainers.image.version="1.1.0"
 LABEL maintainer="bigsk1"
 
 # Security: Create non-root user with docker group access
