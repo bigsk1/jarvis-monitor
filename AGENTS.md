@@ -2,6 +2,20 @@
 
 ## Build/Run Commands
 - **Build image**: `docker-compose build` or `docker build -t jarvis-monitor .`
+- **Build with attestations (for Docker Hub push)**: Use this for production builds to maintain Docker Scout A rating: ( note update the tag version in dockerimage and command as needed.)
+  ```bash
+  docker buildx build \
+    --platform linux/amd64,linux/arm64 \
+    --sbom=true \
+    --provenance=mode=max \
+    -t bigsk1/jarvis-monitor:latest \
+    -t bigsk1/jarvis-monitor:1.1.0 \
+    --push \
+    .
+  ```
+  - `--sbom=true`: Generates Software Bill of Materials attestation
+  - `--provenance=mode=max`: Generates build provenance attestation (required for supply chain attestation score)
+  - Update version tag (1.1.0) to match Dockerfile LABEL org.opencontainers.image.version
 - **Run container**: `docker-compose up -d` (detached) or `docker-compose up` (foreground)
 - **View logs**: `docker-compose logs -f` (follow mode)
 - **Stop**: `docker-compose down`
