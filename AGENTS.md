@@ -9,13 +9,13 @@
     --sbom=true \
     --provenance=mode=max \
     -t bigsk1/jarvis-monitor:latest \
-    -t bigsk1/jarvis-monitor:1.1.0 \
+    -t bigsk1/jarvis-monitor:1.1.2 \
     --push \
     .
   ```
   - `--sbom=true`: Generates Software Bill of Materials attestation
   - `--provenance=mode=max`: Generates build provenance attestation (required for supply chain attestation score)
-  - Update version tag (1.1.0) to match Dockerfile LABEL org.opencontainers.image.version
+  - Update version tag (1.1.2) to match Dockerfile LABEL org.opencontainers.image.version
 - **Run container**: `docker-compose up -d` (detached) or `docker-compose up` (foreground)
 - **View logs**: `docker-compose logs -f` (follow mode)
 - **Stop**: `docker-compose down`
